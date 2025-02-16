@@ -127,8 +127,8 @@ def process_image(image, conf=0.25, iou=0.45):
 
     cell_centers = []
     for box in results.boxes.xyxy:
-        x = (box[0] + box[2]) / 2
-        y = (box[1] + box[3]) / 2
+        x = int((box[0] + box[2]) / 2)
+        y = int((box[1] + box[3]) / 2)
         cell_centers.append([x.item(), y.item()])
     return cell_centers
 
