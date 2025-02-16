@@ -4,7 +4,8 @@ import os
 import zipfile
 from PIL import Image
 from ultralytics import YOLO
-import matplotlib.pyplot as plt
+
+from utils import convert_to_xml
 
 
 CONF_THRESHOLD = 0.25
@@ -21,9 +22,14 @@ PROCESSED_LOG_FILE = "processed_images.csv"
 # 1. Load your YOLO model
 @st.cache_resource
 def load_model():
-    model = YOLO("yolo11n.pt", task="detect")
-    model.eval()
-    return model
+    '''
+        Load the trained YOLO model for object detection.
+    Returns:
+        ultralytics.YOLO: the YOLO model for object detection.
+    '''
+    yolo_model = YOLO("021025_yolo11n_best.pt", task="detect")
+    yolo_model.eval()
+    return yolo_model
 
 
 model = load_model()
@@ -70,12 +76,25 @@ st.markdown(
 
 
 def load_processed_images():
+    '''
+    Load the log of processed images from a CSV file.
+
+    Returns:
+        pd.DataFrame: a DataFrame containing the log of processed images.
+    '''
     if os.path.exists(PROCESSED_LOG_FILE):
         return pd.read_csv(PROCESSED_LOG_FILE)
     return pd.DataFrame(columns=["filename", "date", "full_date"])
 
 
 def save_processed_images(df):
+    '''
+    Save the log of processed images to a CSV file.
+
+    Args:
+        df (pd.DataFrame): the DataFrame containing the log of processed images.
+    '''
+
     df.to_csv(PROCESSED_LOG_FILE, index=False)
 
 
@@ -84,24 +103,34 @@ processed_images = load_processed_images()
 # 2. Image Upload
 uploaded_files = st.file_uploader(
     "Upload Images",
-    type=["jpg", "png", "jpeg"],
+    type=["jpg", "png", "jpeg", "tiff", "tif"],
     accept_multiple_files=True,
 )
 
 
 # 3. Inference and Postprocessing
-def process_image(image, conf=0.25, iou=0.45):  # Added conf and iou as params
+def process_image(image, conf=0.25, iou=0.45):  
+    '''
+    Process the uploaded image using the YOLO model and return the center coordinates of the detected objects.
+    Args:
+        image (BytesIO): the uploaded image file.
+        conf (float): the confidence threshold for object detection.
+        iou (float): the IOU threshold for object detection.
+
+    Returns:
+        list: a list of center coordinates of the detected objects.
+    '''
     img = Image.open(image).convert("RGB")
     results = model.predict(img, conf=conf, iou=iou, verbose=False)[
         0
     ]  # Use parameters for confidence and iou
 
-    centers = []
+    cell_centers = []
     for box in results.boxes.xyxy:
         x = (box[0] + box[2]) / 2
         y = (box[1] + box[3]) / 2
-        centers.append([x.item(), y.item()])
-    return centers
+        cell_centers.append([x.item(), y.item()])
+    return cell_centers
 
 
 # 4. Streamlit UI
@@ -111,18 +140,19 @@ if not uploaded_files:
     st.warning("Please upload an image.")
 
 if uploaded_files and process_button:  # Process only when button is clicked
-    csv_files = []
+    xml_files = []
     new_data = []
     for uploaded_file in uploaded_files:
         try:
             centers = process_image(
                 uploaded_file, conf=CONF_THRESHOLD, iou=IOU_THRESHOLD
             )  # Pass threshold values
-            df = pd.DataFrame(centers, columns=["x", "y"])
-            csv_filename = (
-                uploaded_file.name.rsplit(".", 1)[0] + ".csv"
-            )  # Use original filename (without extension)
-            csv_files.append({"filename": csv_filename, "df": df})
+
+            xml_tree = convert_to_xml(centers, uploaded_file.name)  # Convert to XML
+            xml_filename = uploaded_file.name.rsplit(".", 1)[0] + ".xml"  
+
+            xml_files.append({"filename": xml_filename, "tree": xml_tree})
+
             new_data.append(
                 {
                     "filename": uploaded_file.name,
@@ -135,12 +165,12 @@ if uploaded_files and process_button:  # Process only when button is clicked
             st.error(f"Error processing {uploaded_file.name}: {e}")
             continue
 
-    if csv_files:
+    if xml_files:
         with zipfile.ZipFile("results.zip", "w") as zipf:
-            for csv_file in csv_files:
-                zipf.writestr(
-                    csv_file["filename"], csv_file["df"].to_csv(index=False).encode()
-                )
+            for xml_file in xml_files:
+                xml_file["tree"].write(xml_file["filename"])
+                zipf.write(xml_file["filename"])
+                os.remove(xml_file["filename"])
 
         st.download_button(
             label="Download Results (ZIP)",
