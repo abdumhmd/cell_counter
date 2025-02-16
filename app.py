@@ -129,7 +129,8 @@ def process_image(image, conf=0.25, iou=0.45):
     for box in results.boxes.xyxy:
         x = (box[0] + box[2]) / 2
         y = (box[1] + box[3]) / 2
-        cell_centers.append([int(x), int(y)])
+        # append the center coordinates to the list after converting to integers
+        cell_centers.append((int(x), int(y)))
     return cell_centers
 
 
