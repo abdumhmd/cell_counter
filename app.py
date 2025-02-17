@@ -27,7 +27,7 @@ def load_model():
     Returns:
         ultralytics.YOLO: the YOLO model for object detection.
     '''
-    yolo_model = YOLO("021025_yolo11n_best.pt", task="detect")
+    yolo_model = YOLO("021625_yolo11m_best.pt", task="detect")
     yolo_model.eval()
     return yolo_model
 
