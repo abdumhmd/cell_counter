@@ -109,7 +109,7 @@ uploaded_files = st.file_uploader(
 
 
 # 3. Inference and Postprocessing
-def process_image(image, conf=0.25, iou=0.45):  
+def process_image(image, conf=0.275, iou=0.5):  
     '''
     Process the uploaded image using the YOLO model and return the center coordinates of the detected objects.
     Args:
