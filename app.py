@@ -121,7 +121,7 @@ def process_image(image, conf=0.275, iou=0.5):
         list: a list of center coordinates of the detected objects.
     '''
     img = Image.open(image).convert("RGB")
-    results = model.predict(img, conf=conf, iou=iou, verbose=False)[
+    results = model.predict(img, conf=conf, iou=iou, max_det = 3000, verbose=False)[
         0
     ]  # Use parameters for confidence and iou
 
