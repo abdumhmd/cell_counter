@@ -21,51 +21,65 @@ def load_model():
     return yolo_model
 
 model = load_model()
-
-# --- SUPABASE CONNECTION ---
-# Ensure you have [connections.postgresql] url in your secrets.toml
 conn = st.connection("postgresql", type="sql")
 
+# --- UTILITIES ---
+def format_big_number(num):
+    """Formats large numbers to be more readable (e.g., 1,234 or 1.2k)."""
+    if num >= 1000000:
+        return f"{num / 1000000:.1f}M"
+    elif num >= 1000:
+        return f"{num / 1000:.1f}k"
+    else:
+        return f"{num:,}"
+
 def log_to_supabase(filename, count):
-    """Logs processing event to Supabase using the required text() wrapper."""
     try:
         with conn.session as session:
-            # 2. Wrap the SQL string in text()
             statement = text("""
                 INSERT INTO image_logs (filename, full_date, object_count) 
                 VALUES (:name, :date, :count)
             """)
-            
-            session.execute(
-                statement,
-                params={
-                    "name": filename, 
-                    "date": pd.Timestamp.now(), 
-                    "count": count
-                }
-            )
+            session.execute(statement, params={
+                "name": filename, 
+                "date": pd.Timestamp.now(), 
+                "count": count
+            })
             session.commit()
     except Exception as e:
         st.error(f"Database Logging Error: {e}")
 
-# --- UI SETUP ---
+# --- UI SETUP & STYLING ---
 st.set_page_config(page_title="CyCounter", page_icon=":microscope:", layout="wide")
+
+# RESTORED ISU COLORS
+st.markdown(
+    f"""
+    <style>
+        .stApp {{
+            background-color: {ISU_LIGHT_GRAY};
+        }}
+        .stButton>button {{
+            color: white !important;
+            background-color: {ISU_CARDINAL} !important;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+        }}
+        .stButton>button:hover {{
+            background-color: {ISU_GOLD} !important;
+            color: {ISU_CARDINAL} !important;
+        }}
+        h1, h2, h3 {{
+            color: {ISU_CARDINAL};
+        }}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("CyCounter")
 st.markdown("Welcome to **CyCounter**! Count cells and export `XML` for ImageJ.")
-
-# (Your existing CSS markdown here...)
-
-# --- IMAGE PROCESSING ---
-def process_image(image, conf=0.275, iou=0.5):  
-    img = Image.open(image).convert("RGB")
-    results = model.predict(img, conf=conf, iou=iou, max_det=3000, verbose=False)[0]
-
-    cell_centers = []
-    for box in results.boxes.xyxy:
-        x = (box[0] + box[2]) / 2
-        y = (box[1] + box[3]) / 2
-        cell_centers.append((int(x), int(y)))
-    return cell_centers
 
 # --- MAIN APP LOGIC ---
 uploaded_files = st.file_uploader(
@@ -76,48 +90,46 @@ uploaded_files = st.file_uploader(
 
 process_button = st.button("Process Images")
 
+def process_image(image, conf=0.275, iou=0.5):  
+    img = Image.open(image).convert("RGB")
+    results = model.predict(img, conf=conf, iou=iou, max_det=3000, verbose=False)[0]
+    cell_centers = []
+    for box in results.boxes.xyxy:
+        x, y = (box[0] + box[2]) / 2, (box[1] + box[3]) / 2
+        cell_centers.append((int(x), int(y)))
+    return cell_centers
+
 if uploaded_files and process_button:
     xml_files = []
-    
     for uploaded_file in uploaded_files:
         try:
             centers = process_image(uploaded_file, conf=CONF_THRESHOLD, iou=IOU_THRESHOLD)
-            obj_count = len(centers) # Get the count here
-
-            # Generate XML
+            obj_count = len(centers)
+            
             xml_tree = convert_to_xml(centers, uploaded_file.name)
             xml_filename = uploaded_file.name.rsplit(".", 1)[0] + ".xml"
             xml_files.append({"filename": xml_filename, "tree": xml_tree})
-
-            # LOG TO SUPABASE
+            
             log_to_supabase(uploaded_file.name, obj_count)
-
         except Exception as e:
             st.error(f"Error processing {uploaded_file.name}: {e}")
             continue
 
     if xml_files:
-        # Zip creation logic
         with zipfile.ZipFile("results.zip", "w") as zipf:
             for xml_file in xml_files:
                 xml_file["tree"].write(xml_file["filename"])
                 zipf.write(xml_file["filename"])
                 os.remove(xml_file["filename"])
-
-        st.download_button(
-            label="Download Results (ZIP)",
-            data=open("results.zip", "rb"),
-            file_name="results.zip",
-            mime="application/zip",
-        )
+        
+        st.download_button("Download Results (ZIP)", data=open("results.zip", "rb"), file_name="results.zip")
         os.remove("results.zip")
         st.success("Processing complete and logged to database!")
 
-# --- DISPLAY STATS FROM SUPABASE ---
+# --- DISPLAY STATS ---
 st.markdown("---")
-# Fetch counts from Supabase to keep the dashboard persistent
 try:
-    processed_data = conn.query("SELECT * FROM image_logs;", ttl=0)
+    processed_data = conn.query("SELECT object_count FROM image_logs;", ttl=0)
     
     if not processed_data.empty:
         total_images = len(processed_data)
@@ -125,12 +137,13 @@ try:
 
         col1, col2 = st.columns(2)
         with col1:
-            st.markdown(f"<h1 style='text-align: center;'>{total_images}</h1>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center;'>Total Images Processed</p>", unsafe_allow_html=True)
+            st.markdown(f"<h1 style='text-align: center; margin-bottom:0;'>{total_images:,}</h1>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: gray;'>Total Images Processed</p>", unsafe_allow_html=True)
         with col2:
-            st.markdown(f"<h1 style='text-align: center;'>{total_cells}</h1>", unsafe_allow_html=True)
-            st.markdown("<p style='text-align: center;'>Total Cells Detected</p>", unsafe_allow_html=True)
+            # Using the formatting function for big cell counts
+            st.markdown(f"<h1 style='text-align: center; margin-bottom:0;'>{format_big_number(total_cells)}</h1>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: gray;'>Total Cells Detected</p>", unsafe_allow_html=True)
     else:
-        st.write("No image processing data yet.")
-except Exception:
-    st.write("Waiting for database connection...")
+        st.info("No image processing data found in database yet.")
+except Exception as e:
+    st.warning("Could not refresh dashboard stats. Database may be sleeping.")
