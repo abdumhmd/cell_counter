@@ -1,4 +1,5 @@
 import streamlit as st
+from sqlalchemy import text
 import pandas as pd
 import os
 import zipfile
@@ -26,11 +27,17 @@ model = load_model()
 conn = st.connection("postgresql", type="sql")
 
 def log_to_supabase(filename, count):
-    """Logs processing event to Supabase instead of CSV."""
+    """Logs processing event to Supabase using the required text() wrapper."""
     try:
         with conn.session as session:
+            # 2. Wrap the SQL string in text()
+            statement = text("""
+                INSERT INTO image_logs (filename, full_date, object_count) 
+                VALUES (:name, :date, :count)
+            """)
+            
             session.execute(
-                "INSERT INTO image_logs (filename, full_date, object_count) VALUES (:name, :date, :count);",
+                statement,
                 params={
                     "name": filename, 
                     "date": pd.Timestamp.now(), 
