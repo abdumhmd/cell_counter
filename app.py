@@ -79,7 +79,10 @@ st.markdown(
 )
 
 st.title("CyCounter")
-st.markdown("Welcome to **CyCounter**! Count cells and export `XML` for ImageJ.")
+st.markdown(
+    f""" Welcome to **CyCounter**! This app helps you count cells from microscopy images and gives you `XML` files you can edit in ImageJ. """,
+    unsafe_allow_html=True,
+)
 
 # --- MAIN APP LOGIC ---
 uploaded_files = st.file_uploader(
