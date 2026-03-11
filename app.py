@@ -147,3 +147,18 @@ try:
         st.info("No image processing data found in database yet.")
 except Exception as e:
     st.warning("Could not refresh dashboard stats. Database may be sleeping.")
+
+# Readme Section
+st.markdown("---")  # Separator
+st.subheader("How to Use CyCounter")
+st.write(
+    """
+    1. **Upload Images:** Click the "Browse files" button to select one or more image files (JPG, PNG, or JPEG format). You can select multiple images by holding down Ctrl (or Cmd on Mac) while clicking.
+    2. **Process Images:** After uploading the images, click the "Process Images" button. CyCounter will analyze each image, detect objects, and calculate the center coordinates of the bounding boxes.
+    3. **Download Results:** Once the processing is complete, a "Download Results (ZIP)" button will appear. Click it to download a zip file containing individual XML files for each processed image. You can load the XML files in ImageJ cell counter to view and edit the counted cells.
+
+    **Note:** CyCounter uses fixed confidence and IOU thresholds for object detection.  If you need to adjust these, please contact the developer.
+
+    Made with :coffee: by Abdurahman A. Mohammed 
+    """
+)
