@@ -56,9 +56,6 @@ st.set_page_config(page_title="CyCounter", page_icon=":microscope:", layout="wid
 st.markdown(
     f"""
     <style>
-        .stApp {{
-            background-color: {ISU_LIGHT_GRAY};
-        }}
         .stButton>button {{
             color: white !important;
             background-color: {ISU_CARDINAL} !important;
